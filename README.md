@@ -22,3 +22,9 @@ The default Ollama model we use is `deepseek-coder:6.7b-instruct-q4_K_M`. Should
 ```
 python3 orchestrator.py -m llama3.2:latest
 ```
+
+Should you wish to redirect the log outputs to a particular file, you may do so as follows:
+
+```
+python3 orchestrator.py -o path_to_log_file.txt
+```
