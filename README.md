@@ -8,3 +8,17 @@ Authors:
 - Hugo Lin
 - Steven Jiang
 - Ved Pradhan
+
+## How to Run
+
+We are still at a very early stage in this project. However, after installing the repository and navigating to the directory, you can run what is currently available using this command:
+
+```
+python3 orchestrator.py
+```
+
+The default Ollama model we use is `deepseek-coder:6.7b-instruct-q4_K_M`. Should you prefer to use a different model, you may do so by running the following command:
+
+```
+python3 orchestrator.py -m llama3.2:latest
+```
