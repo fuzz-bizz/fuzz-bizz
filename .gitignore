@@ -177,3 +177,4 @@ pyrightconfig.json
 
 # For log files
 logs/
+project/

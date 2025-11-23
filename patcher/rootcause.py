@@ -1,7 +1,7 @@
-# swe.py
+# rootcause.py
 #
-# This file implements an LLM Agent that reasons about how to patch code. Significant inspiration has
-# been taken from Trail of Bits's Buttercup.
+# This file implements an LLM Agent that reasons about what could be the root cause of the
+# vulnerability.
 
 from patcher.agent import Agent
 
@@ -11,7 +11,7 @@ Goal: perform a Root Cause Analysis of one (or more) security vulnerabilities.
 The Root Cause Analysis will be used by a downstream code-generation agent, so factual and structural accuracy are critical.
 """
 
-STRATEGY_PROMPT = """
+ROOTCAUSE_PROMPT = """
 You are analyzing a security vulnerability in the following project:
 
 <project_name>
@@ -76,7 +76,7 @@ class RootCauseAgent(Agent):
 
     def analyze_vulnerability(self, project_name, snippets, stacktraces, diff="", reflection=""):
         return self.ask(
-            STRATEGY_PROMPT.format(
+            ROOTCAUSE_PROMPT.format(
                 PROJECT_NAME=project_name,
                 CODE_SNIPPETS=snippets,
                 STACKTRACES=stacktraces,
