@@ -8,11 +8,11 @@
 
 from shared.stringasxml import extract
 
+import glob
 import difflib
 import logging
 import os
 import patch
-import signal
 import subprocess
 import tempfile
 
@@ -57,6 +57,7 @@ class QualityEngineerAgent():
                 raise RuntimeError("patch reversion failed")
 
     def compile(self):
+        logging.info(f"{self.name} is compiling")
         output_path = "project/executable"
 
         # Construct compilation command
@@ -72,59 +73,72 @@ class QualityEngineerAgent():
             )
 
             # Compilation succeeded (exit code 0)
-            return result.returncode == 0
+            success = result.returncode == 0
+            if success:
+                logging.info("compilation succeeded")
+            else:
+                logging.info("compilation failed")
+            return success, result.stdout, result.stderr
 
-        except Exception:
+        except Exception as e:
             # Something went wrong running GCC
-            return False
+            logging.info("error running gcc")
+            return False, "", str(e)
 
     def test_inputs(self, inputs):
-        failed_inputs = []  # List to store inputs that caused a failure
-        stack_traces = []  # List to store corresponding stack traces for failed inputs
+        logging.info(f"{self.name} is testing fuzzed inputs")
 
-        # Iterate over all the inputs to test
         for input_data in inputs:
             try:
-                # Create a temporary file for the input data
                 with tempfile.NamedTemporaryFile(delete=False) as temp_input_file:
-                    # Write the input data to the temporary file
                     temp_input_file.write(input_data)
-                    temp_input_file.close()  # Close the file so gdb can open it
+                    temp_input_file.close()
 
-                    # Run the program using gdb to capture stack traces
                     result = subprocess.run(
-                        ["gdb", "-q", "--batch", "-ex", f"run < {temp_input_file.name}", "--args", "./project/executable"],
-                        stdout=subprocess.PIPE,  # Capture standard output
-                        stderr=subprocess.PIPE,  # Capture standard error (this will include stack trace on crash)
-                        text=True,  # Interpret output as text
-                        timeout=10  # Optional: Set a timeout to avoid infinite hangs (in seconds)
+                        [
+                            "gdb", "-q", "--batch",
+                            "-ex", f"run < {temp_input_file.name}",
+                            "--args", "./project/executable"
+                        ],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=10
                     )
 
-                    # Check if the process crashed (non-zero return code)
-                    if result.returncode != 0:
-                        logging.info(f"Program failed for input: {input_data}")
-                        failed_inputs.append(input_data)
-
-                        # Capture the stack trace from stderr (stderr should include the gdb stack trace)
-                        stack_traces.append(result.stderr)
-
-                    # Clean up the temporary file
                     os.remove(temp_input_file.name)
 
+                    # Non-zero return code = crash/failure
+                    if result.returncode != 0:
+                        logging.info(f"Program failed for input: {input_data}")
+
+                        return {
+                            "input": input_data,
+                            "stack_trace": result.stderr,   # gdb stack trace
+                            "stdout": result.stdout,
+                            "stderr": result.stderr
+                        }
+
             except subprocess.TimeoutExpired:
-                # Handle case where the program hangs and exceeds the timeout
                 logging.info(f"Program timed out for input: {input_data}")
-                failed_inputs.append(input_data)
-                stack_traces.append("Timeout expired during execution.")  # Record a timeout error message
+
+                return {
+                    "input": input_data,
+                    "stack_trace": "Timeout expired during execution.",
+                    "stdout": "",
+                    "stderr": "Timeout expired during execution."
+                }
+
             except Exception as e:
-                # If there's an exception running the subprocess, log it
                 logging.info(f"Error running program for input {input_data}: {e}")
-                failed_inputs.append(input_data)
-                stack_traces.append(str(e))  # Capture the exception message
 
-        # If all inputs passed successfully, return None
-        if not failed_inputs:
-            return None
+                return {
+                    "input": input_data,
+                    "stack_trace": str(e),
+                    "stdout": "",
+                    "stderr": str(e)
+                }
 
-        # Return a list of dictionaries, each containing the input and corresponding stack trace
-        return [{"input": input_data, "stack_trace": trace} for input_data, trace in zip(failed_inputs, stack_traces)]
+        # If we reach here, all inputs succeeded
+        logging.info("all fuzzed inputs passed! we are done!")
+        return None
