@@ -56,9 +56,18 @@ class QualityEngineerAgent():
             if not ps.apply():
                 raise RuntimeError("patch reversion failed")
 
+        # Clean up compiled executables
+        for exe_path in ["project/executable", "project/executable.exe"]:
+            if os.path.exists(exe_path):
+                try:
+                    os.remove(exe_path)
+                    logging.info(f"Removed {exe_path}")
+                except Exception as e:
+                    logging.warning(f"Failed to remove {exe_path}: {e}")
+
     def compile(self):
         logging.info(f"{self.name} is compiling")
-        output_path = "project/executable"
+        output_path = "project/executable"  # desired final name without .exe
 
         # Construct compilation command
         source_files = glob.glob("project/*.c")
@@ -72,21 +81,32 @@ class QualityEngineerAgent():
                 text=True
             )
 
-            # Compilation succeeded (exit code 0)
             success = result.returncode == 0
+
             if success:
-                logging.info("compilation succeeded")
+                # On Windows, GCC created output_path + '.exe'
+                if os.name == "nt" and not os.path.exists(output_path):
+                    exe_path = output_path + ".exe"
+                    if os.path.exists(exe_path):
+                        os.rename(exe_path, output_path)
+                        logging.info(f"Renamed {exe_path} -> {output_path}")
+                logging.info("Compilation succeeded")
             else:
-                logging.info("compilation failed")
+                logging.info("Compilation failed")
+
             return success, result.stdout, result.stderr
 
         except Exception as e:
-            # Something went wrong running GCC
-            logging.info("error running gcc")
+            logging.info("Error running gcc")
             return False, "", str(e)
 
     def test_inputs(self, inputs):
         logging.info(f"{self.name} is testing fuzzed inputs")
+
+        if os.path.exists("project/executable"):
+            exe_path = "./project/executable"
+        else:
+            exe_path = "./project/executable.exe"
 
         for input_data in inputs:
             try:
@@ -98,7 +118,7 @@ class QualityEngineerAgent():
                         [
                             "gdb", "-q", "--batch",
                             "-ex", f"run < {temp_input_file.name}",
-                            "--args", "./project/executable"
+                            "--args", exe_path
                         ],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
