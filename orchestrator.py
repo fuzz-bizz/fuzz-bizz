@@ -18,7 +18,25 @@ logger = logging.getLogger(__name__)
 
 # ----------------- Main function -----------------
 def main():
-    patcher.run()
+
+    # Example Inputs (will eventually be removed)
+    project_name = "libfastparse"
+    vulnerable_snippets = ["""
+[project/fastparse.c:11] void parse_input(const char *input) {
+    char buffer[16];
+    printf("Parsing input...\n");
+    strcpy(buffer, input);
+    printf("Received: %s\n", buffer);
+}
+"""]
+    stacktraces = ["""
+#0  0x00007ffff7a334bb in __strcpy_ssse3 () from /usr/lib/libc.so.6
+#1  0x0000555555555152 in parse_input (input=0x7fffffffe8d0 "AAAAAA...") at fastparse.c:4
+#2  0x00005555555551d4 in main (argc=2, argv=0x7fffffffe7c8) at fastparse.c:25
+"""]
+    fuzzed_inputs = [b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"]
+
+    patcher.run(project_name, vulnerable_snippets, stacktraces, fuzzed_inputs)
 
 # ----------------- Argument parsing -----------------
 def parse_args():

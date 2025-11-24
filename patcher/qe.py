@@ -24,10 +24,10 @@ class QualityEngineerAgent():
 
     def make_diff(self, old_code, new_code, file_path, identifier):
         # Extract line number from identifier
-        match = re.search(r'line (\d+)', identifier)
+        match = re.search(r'\d+', identifier)
         if not match:
-            raise ValueError(f"Could not find line number in identifier: {identifier}")
-        line_number = int(match.group(1))  # 1-based
+            raise ValueError(f"Could not find any number in identifier: {identifier}")
+        line_number = int(match.group())  # 1-based
 
         old_lines = old_code.splitlines(keepends=True)
         new_lines = new_code.splitlines(keepends=True)

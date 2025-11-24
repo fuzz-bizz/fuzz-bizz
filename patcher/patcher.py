@@ -12,29 +12,16 @@ from shared.stringasxml import extract
 
 import logging
 
-def run():
+def run(project_name, snippets, stacktraces, fuzzed_inputs):
+
     rootcauseagent = RootCauseAgent()
     strategistagent = StrategistAgent()
     sweagent = SWEAgent()
     qeagent = QualityEngineerAgent()
     reflectionagent = ReflectionAgent()
 
-    # Example Inputs (will eventually be removed)
-    project_name = "libfastparse"
-    snippets = """
-[project/fastparse.c:11] void parse_input(const char *input) {
-    char buffer[16];
-    printf("Parsing input...\n");
-    strcpy(buffer, input);
-    printf("Received: %s\n", buffer);
-}
-"""
-    stacktrace = """
-#0  0x00007ffff7a334bb in __strcpy_ssse3 () from /usr/lib/libc.so.6
-#1  0x0000555555555152 in parse_input (input=0x7fffffffe8d0 "AAAAAA...") at fastparse.c:4
-#2  0x00005555555551d4 in main (argc=2, argv=0x7fffffffe7c8) at fastparse.c:25
-"""
-    fuzzed_inputs = [b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"]
+    snippets = "\n===== ITEM SEPARATOR =====\n".join(snippets)
+    stacktraces = "\n===== ITEM SEPARATOR =====\n".join(stacktraces)
 
     previous_patches = []
     previous_patches_list = []
@@ -49,7 +36,7 @@ def run():
 
         # perform root cause analysis
         if step == "root_cause_analysis":
-            rca = rootcauseagent.analyze_vulnerability(project_name, snippets, stacktrace, reflection=reflection)
+            rca = rootcauseagent.analyze_vulnerability(project_name, snippets, stacktraces, reflection=reflection)
             step = "patch_strategy"
 
         # create patch strategy
