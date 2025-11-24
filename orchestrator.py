@@ -22,7 +22,7 @@ def main():
     # Example Inputs (will eventually be removed)
     project_name = "libfastparse"
     vulnerable_snippets = ["""
-[project/fastparse.c:11] void parse_input(const char *input) {
+[project/fastparse.c:4] void parse_input(const char *input) {
     char buffer[16];
     printf("Parsing input...\n");
     strcpy(buffer, input);

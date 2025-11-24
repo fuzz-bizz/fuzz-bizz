@@ -26,7 +26,7 @@ class QualityEngineerAgent():
         # Extract line number from identifier
         match = re.search(r'\d+', identifier)
         if not match:
-            raise ValueError(f"Could not find any number in identifier: {identifier}")
+            return "", ""
         line_number = int(match.group())  # 1-based
 
         old_lines = old_code.splitlines(keepends=True)
@@ -68,6 +68,8 @@ class QualityEngineerAgent():
             new_code = extract(p, "new_code")[0]
             identifier = extract(p, "identifier")[0]
             diff, file_lines = self.make_diff(old_code, new_code, file_path, identifier)
+            if diff == "":
+                return False
             logging.info(f"{self.name} is applying diff\n\n{diff}\n")
             ps = fromstring(diff.encode("utf-8"))
             if not ps or not ps.apply():
