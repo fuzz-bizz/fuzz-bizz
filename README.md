@@ -28,3 +28,11 @@ Should you wish to redirect the log outputs to a particular file, you may do so 
 ```
 python3 orchestrator.py -o path_to_log_file.txt
 ```
+
+## Patcher
+
+The patcher is implemented as a team of LLM and non-LLM agents (using Ollama and DeepSeek) that mimics a human security team. It's major steps include root cause analysis, patch strategy determination, patch generation, quality tests, and reflection in case of failures.
+
+Note that the patcher assumes that the project we are targetting is already downloaded in the `project/` directory.
+
+Note that, since the patcher relies heavily on LLM output, it is very volatile on older LLM models.
