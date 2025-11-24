@@ -8,11 +8,12 @@
 
 from shared.stringasxml import extract
 
-import glob
 import difflib
+import glob
 import logging
 import os
-import patch
+from patch_ng import fromstring
+import re
 import subprocess
 import tempfile
 
@@ -21,40 +22,66 @@ class QualityEngineerAgent():
         self.name = "quality engineer agent"
         self.patch_stack = []
 
-    def make_diff(self, old_code, new_code, file_path):
+    def make_diff(self, old_code, new_code, file_path, identifier):
+        # Extract line number from identifier
+        match = re.search(r'line (\d+)', identifier)
+        if not match:
+            raise ValueError(f"Could not find line number in identifier: {identifier}")
+        line_number = int(match.group(1))  # 1-based
+
         old_lines = old_code.splitlines(keepends=True)
         new_lines = new_code.splitlines(keepends=True)
+        if (old_lines[0] == "\n"):
+            old_lines = old_lines[1:]
+        if (new_lines[0] == "\n"):
+            new_lines = new_lines[1:]
 
+        with open(file_path, 'r', encoding='utf-8') as f:
+            file_lines = f.readlines()
+
+        old_lines = file_lines[line_number - 1 : line_number - 1 + len(old_lines)]
+
+        # Generate the diff and get it as a string
         diff = difflib.unified_diff(
             old_lines,
             new_lines,
             fromfile=file_path,
             tofile=file_path,
         )
-        return "".join(diff)
+        diff_str = "".join(diff)
+
+        # Replace the @@ header to use the LLM-provided line number
+        # Pattern: @@ -<start>,<count> +<start>,<count> @@
+        def replace_header(match):
+            old_count = len(old_lines)
+            new_count = len(new_lines)
+            return f"@@ -{line_number},{old_count} +{line_number},{new_count} @@"
+
+        diff_str = re.sub(r'@@ -\d+,\d+ \+\d+,\d+ @@', replace_header, diff_str)
+
+        return diff_str, file_lines
 
     def apply_patch(self, patches):
         for p in reversed(patches):
-            file_path = extract(p, "file_path")
-            old_code = extract(p, "old_code")
-            new_code = extract(p, "new_code")
-            diff = self.make_diff(old_code, new_code, file_path)
+            file_path = extract(p, "file_path")[0]
+            old_code = extract(p, "old_code")[0]
+            new_code = extract(p, "new_code")[0]
+            identifier = extract(p, "identifier")[0]
+            diff, file_lines = self.make_diff(old_code, new_code, file_path, identifier)
             logging.info(f"{self.name} is applying diff\n\n{diff}\n")
-            ps = patch.fromstring(diff)
-            if not ps.apply():
+            ps = fromstring(diff.encode("utf-8"))
+            if not ps or not ps.apply():
                 return False
-            self.patch_stack.append((old_code, new_code, file_path))
+            self.patch_stack.append((file_path, file_lines))
 
         return True
 
     def revert_patch(self):
         logging.info(f"{self.name} is reverting patch")
         while self.patch_stack:
-            old_code, new_code, file_path = self.patch_stack.pop()
-            diff = self.make_diff(new_code, old_code, file_path)
-            ps = patch.fromstring(diff)
-            if not ps.apply():
-                raise RuntimeError("patch reversion failed")
+            file_path, file_lines = self.patch_stack.pop()
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.writelines(file_lines)
 
         # Clean up compiled executables
         for exe_path in ["project/executable", "project/executable.exe"]:
@@ -84,12 +111,6 @@ class QualityEngineerAgent():
             success = result.returncode == 0
 
             if success:
-                # On Windows, GCC created output_path + '.exe'
-                if os.name == "nt" and not os.path.exists(output_path):
-                    exe_path = output_path + ".exe"
-                    if os.path.exists(exe_path):
-                        os.rename(exe_path, output_path)
-                        logging.info(f"Renamed {exe_path} -> {output_path}")
                 logging.info("Compilation succeeded")
             else:
                 logging.info("Compilation failed")

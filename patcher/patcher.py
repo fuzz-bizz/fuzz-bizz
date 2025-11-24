@@ -3,13 +3,14 @@
 # This file sets up an agentic LLM execution of the patcher components. It assumes that the project
 # has already been downloaded to the project/ directory.
 
-from sys import breakpointhook
 from patcher.qe import QualityEngineerAgent
 from patcher.reflection import ReflectionAgent
 from patcher.rootcause import RootCauseAgent
 from patcher.strategist import StrategistAgent
 from patcher.swe import SWEAgent
 from shared.stringasxml import extract
+
+import logging
 
 def run():
     rootcauseagent = RootCauseAgent()
@@ -30,8 +31,8 @@ def run():
 """
     stacktrace = """
 #0  0x00007ffff7a334bb in __strcpy_ssse3 () from /usr/lib/libc.so.6
-#1  0x0000555555555152 in parse_input (input=0x7fffffffe8d0 "AAAAAA...") at fastparse.c:10
-#2  0x00005555555551d4 in main (argc=2, argv=0x7fffffffe7c8) at fastparse.c:20
+#1  0x0000555555555152 in parse_input (input=0x7fffffffe8d0 "AAAAAA...") at fastparse.c:4
+#2  0x00005555555551d4 in main (argc=2, argv=0x7fffffffe7c8) at fastparse.c:25
 """
     fuzzed_inputs = [b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"]
 
@@ -62,6 +63,7 @@ def run():
 
         # if llm output was malformed
         if not patch_list:
+            logging.info("llm output was malformed")
             reflection = reflectionagent.reflect_on_patch(rca, snippets, previous_patches, "creation_failed")
             step = extract(reflection, "next_component")
             if (step not in ["patch_strategy", "patch_generation"]):
@@ -78,6 +80,7 @@ def run():
                 break
 
         if duplicate:
+            logging.info("llm produced same patch as an earlier one")
             reflection = reflectionagent.reflect_on_patch(rca, snippets, previous_patches, "duplicated")
             step = extract(reflection, "next_component")
             if (step not in ["patch_strategy", "patch_generation"]):
