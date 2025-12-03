@@ -64,14 +64,26 @@ Instructions:
 <file_path>[File path of the code snippet]</file_path>
 <identifier>[Identifier of the code snippet]</identifier>
 <old_code>
-[Include at least 5 lines before the modified part, if available]
-[Old code that needs to be replaced]
-[Include at least 5 lines after the modified part, if available]
+[EXACT LINES of old code that you are replacing, should match exactly what is in the codebase, NO ADDITIONAL COMMENTS]
 </old_code>
 <new_code>
-[Include at least 5 lines before the modified part, if available]
-[New code that fixes the vulnerability]
-[Include at least 5 lines after the modified part, if available]
+[New code that is meant to replace the old code]
+</new_code>
+</patch>
+
+Example patch (do not put the code in curly braces):
+<patch>
+<file_path>[File path of the code snippet]</file_path>
+<identifier>[Identifier of the code snippet]</identifier>
+<old_code>
+int subtract(int a, int b) {{
+    return a + b;
+}}
+</old_code>
+<new_code>
+int subtract(int a, int b) {{
+    return a - b;
+}}
 </new_code>
 </patch>
 

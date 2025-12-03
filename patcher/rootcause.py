@@ -44,19 +44,6 @@ not just the immediate symptoms.
 
 Your task is to produce a **precise, detailed Root Cause Analysis** of the vulnerability. Be rigorous and avoid speculation.
 
-Request additional code snippets if they are *critical* to understand the root cause:
-   - Exact failure location
-   - Vulnerable control/data flow
-   - Failed security checks
-
-   To request additional code snippets, use the following format:
-   ```
-   <code_snippet_request>
-   [Your detailed request for specific code, including file paths and line numbers if known]
-   </code_snippet_request>
-   ```
-   You can include multiple requests by using multiple sets of these tags.
-
 Guidelines:
 * Stay focused on the vulnerability in the stack traces/crashes.
 * Be specific and technically rigorous.

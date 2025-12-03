@@ -42,15 +42,6 @@ issue, if available, or validate the inputs before using them.
    A thourough, detailed and complete description of the chosen patch strategy written for another LLM that will implement it.
 </full_description>
 
-REQUESTING MORE INFORMATION
-If you need additional code or context, request it ONLY in this form:
-
-<request_information>
-[Describe exactly what you need and why.]
-</request_information>
-
-If you do not need more information, do NOT include what those tags.
-
 POLICIES (hard constraints)
 
 1. Scope:
