@@ -8,6 +8,8 @@ import logging
 import sys
 import subprocess
 import time
+import vuln_finder.vuln_finder as vuln_finder
+
 
 # ----------------- Logging setup -----------------
 logging.basicConfig(
@@ -21,7 +23,20 @@ def main():
 
     # Example Inputs (will eventually be removed)
     project_name = "libfastparse"
-    vulnerable_snippets = ["""
+    
+    # Scan the codebase for vulnerabilities
+    project_dir = "project"
+    target_extensions = ['.py', '.c', '.cpp', '.java', '.js']
+    
+    logger.info(f"Scanning codebase in {project_dir} for vulnerabilities...")
+    scan_results = vuln_finder.scan_codebase(project_dir, target_extensions)
+    
+    # Generate vulnerable snippets from scan results
+    vulnerable_snippets = vuln_finder.generate_vulnerable_snippets(scan_results)
+    
+    if not vulnerable_snippets:
+        logger.warning("No vulnerabilities found in codebase. Using placeholder inputs.")
+        vulnerable_snippets = ["""
 [project/fastparse.c:4] void parse_input(const char *input) {
     char buffer[16];
     printf("Parsing input...\n");
@@ -29,6 +44,14 @@ def main():
     printf("Received: %s\n", buffer);
 }
 """]
+    
+    logger.info(f"Found {len(vulnerable_snippets)} vulnerable snippet(s)")
+    # with open("vulnerable_snippets.txt", "w", encoding="utf-8") as f:
+    #     for idx, snippet in enumerate(vulnerable_snippets, 1):
+    #         f.write(f"\n--- Vulnerable Snippet #{idx} ---\n{snippet}\n")
+    # logger.info(f"Wrote vulnerable snippets to vulnerable_snippets.txt")
+    
+    
     stacktraces = ["""
 #0  0x00007ffff7a334bb in __strcpy_ssse3 () from /usr/lib/libc.so.6
 #1  0x0000555555555152 in parse_input (input=0x7fffffffe8d0 "AAAAAA...") at fastparse.c:4

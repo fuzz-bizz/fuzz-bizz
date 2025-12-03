@@ -5,18 +5,23 @@ import ast
 
 VULNERABLE_SINKS = [
     'strcpy', 'strcat', 'sprintf', 'system', 'execve', 'memcpy', 'gets', 'scanf', 'read',
+    'vprintf', 'vsprintf', 'sscanf', 'mmap', 'sendto', 'malloc', 'calloc', 'realloc', 'free', 'alloca', 'bcopy', 'bzero', 'memset', 'memmove', 'vsnprintf', 'snprintf', 
     'os.system', 'os.popen', 'subprocess.call', 'subprocess.check_output', 'eval', 'exec', 
-    'pickle.load', 'pickle.loads',
+    'pickle.load', 'pickle.loads', 'jinja2.render', 'yaml.load', 'input', 'socket.send', 'webbrowser.open',
     '.execute(', '.query(', 'template.render', 'db.raw_sql',
-    'shell_exec', 'passthru', 'unserialize',
+    'shell_exec', 'passthru', 'unserialize', 'document.write', 'innerHTML'
 ]
 
 RISK_SCORES: Dict[str, int] = {
     'system': 10, 'execve': 10, 'eval': 10, 'pickle.loads': 10, 'unserialize': 10, 'gets': 10,
+    'mmap': 10, 'yaml.load': 10, 'document.write': 10, 'free': 10, 'realloc': 10,
     'os.system': 9, 'os.popen': 9, 'exec': 9, 'shell_exec': 9, 'passthru': 9, 'scanf': 9, 'pickle.load': 9,
-    'strcpy': 8, 'strcat': 8, 'sprintf': 8, 'memcpy': 8,
-    '.execute(': 7, '.query(': 7, 'db.raw_sql': 7,
-    'subprocess.call': 6, 'subprocess.check_output': 6, 'read': 6, 'template.render': 6
+    'input': 9, 'innerHTML': 9, 'malloc': 9, 'calloc': 9,
+    'strcpy': 8, 'strcat': 8, 'sprintf': 8, 'memcpy': 8, 'vprintf': 8, 'vsprintf': 8,
+    'alloca': 8, 'bcopy': 8, 'bzero': 8, 'memset': 8, 'memmove': 8,
+    '.execute(': 7, '.query(': 7, 'db.raw_sql': 7, 'jinja2.render': 7, 'vsnprintf': 7, 'snprintf': 7,
+    'subprocess.call': 6, 'subprocess.check_output': 6, 'read': 6, 'template.render': 6,
+    'sscanf': 6, 'sendto': 6, 'socket.send': 6, 'webbrowser.open': 6
 }
 
 FUNCTION_DEFINITION_PATTERNS = {
@@ -101,6 +106,114 @@ def find_parent_function(filepath: str, sink_line_num: int, extension: str) -> s
             
     except IOError:
         return "Unknown_File"
+
+
+def find_function_definition_line(filepath: str, function_name: str, extension: str, max_search_line: int = None) -> int:
+    """
+    Finds the line number where a function is defined by searching backward from a reference line.
+    Returns -1 if not found.
+    """
+    patterns_to_use = FUNCTION_DEFINITION_PATTERNS.get(extension.lower(), [])
+    if not patterns_to_use:
+         patterns_to_use = FUNCTION_DEFINITION_PATTERNS.get('.c', [])
+
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+            
+            search_end = max_search_line if max_search_line else len(lines)
+            for i in range(search_end - 1, -1, -1):
+                line = lines[i]
+                for pattern in patterns_to_use:
+                    match = pattern.search(line)
+                    if match and match.group(1) == function_name:
+                        return i + 1
+            
+            return -1
+            
+    except IOError:
+        return -1
+
+
+def extract_function_snippet(filepath: str, function_name: str, function_start_line: int, extension: str, context_lines: int = 3) -> str:
+    """
+    Extracts a code snippet containing the function. For C/C++/Java, tries to extract the full function.
+    For Python, extracts the function with proper indentation handling.
+    Returns the formatted snippet.
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        
+        if function_start_line < 1 or function_start_line > len(lines):
+            return ""
+        
+        func_start_idx = function_start_line - 1
+        func_end_idx = func_start_idx
+        
+        if extension in ['.c', '.cpp', '.java', '.js']:
+            brace_count = 0
+            in_function = False
+            
+            for i in range(func_start_idx, len(lines)):
+                line = lines[i]
+                for char in line:
+                    if char == '{':
+                        brace_count += 1
+                        in_function = True
+                    elif char == '}':
+                        brace_count -= 1
+                        if in_function and brace_count == 0:
+                            func_end_idx = i
+                            break
+                if in_function and brace_count == 0:
+                    break
+            
+            if func_end_idx == func_start_idx:
+                patterns = FUNCTION_DEFINITION_PATTERNS.get(extension.lower(), [])
+                for i in range(func_start_idx + 1, min(func_start_idx + 50, len(lines))):
+                    for pattern in patterns:
+                        if pattern.search(lines[i]):
+                            func_end_idx = i - 1
+                            break
+                    if func_end_idx > func_start_idx:
+                        break
+                if func_end_idx == func_start_idx:
+                    func_end_idx = min(func_start_idx + 30, len(lines) - 1)
+        
+        elif extension == '.py':
+            if func_start_idx >= len(lines):
+                return ""
+            
+            base_indent = len(lines[func_start_idx]) - len(lines[func_start_idx].lstrip())
+            
+            func_end_idx = func_start_idx
+            for i in range(func_start_idx + 1, len(lines)):
+                line = lines[i]
+                if not line.strip():
+                    continue
+                current_indent = len(line) - len(line.lstrip())
+                if current_indent <= base_indent and line.strip():
+                    func_end_idx = i - 1
+                    break
+                func_end_idx = i
+        
+        else:
+            func_end_idx = min(func_start_idx + 30, len(lines) - 1)
+        
+        snippet_lines = lines[func_start_idx:func_end_idx + 1]
+        snippet_code = ''.join(snippet_lines).rstrip()
+        
+        normalized_path = filepath
+        if filepath.startswith('/'):
+            normalized_path = filepath
+        
+        formatted_snippet = f"[{normalized_path}:{function_start_line}] {snippet_code}"
+        return formatted_snippet
+        
+    except Exception as e:
+        print(f"Error extracting snippet from {filepath}: {e}")
+        return ""
 
 
 def analyze_file(filepath: str, sinks: List[str], scores: Dict[str, int]) -> List[Tuple[int, str, str, str, int]]:
@@ -228,6 +341,50 @@ def scan_codebase(root_dir: str, file_extensions: List[str]) -> List[Dict]:
     return sorted_final_output
 
 
+def generate_vulnerable_snippets(scan_results: List[Dict]) -> List[str]:
+    """
+    Converts scan results into formatted vulnerable snippets as expected by patcher.run().
+    
+    Args:
+        scan_results: List of dictionaries from scan_codebase() containing vulnerability findings
+    
+    Returns:
+        List of formatted snippet strings in the format: "[filepath:line] code..."
+    """
+    snippets = []
+    
+    for result in scan_results:
+        filepath = result['file_path']
+        parent_func = result['parent_function']
+        line_number = result['line_number']
+        extension = os.path.splitext(filepath)[1].lower()
+        
+        func_start_line = find_function_definition_line(filepath, parent_func, extension, line_number)
+        
+        if func_start_line > 0:
+            snippet = extract_function_snippet(filepath, parent_func, func_start_line, extension)
+            if snippet:
+                snippets.append(snippet)
+        else:
+            try:
+                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    lines = f.readlines()
+                
+                if line_number > 0 and line_number <= len(lines):
+                    start_idx = max(0, line_number - 5)
+                    end_idx = min(len(lines), line_number + 5)
+                    snippet_lines = lines[start_idx:end_idx]
+                    snippet_code = ''.join(snippet_lines).rstrip()
+                    
+                    normalized_path = filepath
+                    formatted_snippet = f"[{normalized_path}:{line_number}] {snippet_code}"
+                    snippets.append(formatted_snippet)
+            except Exception as e:
+                print(f"Error generating fallback snippet from {filepath}: {e}")
+    
+    return snippets
+
+
 if __name__ == "__main__":
     PROJECT_ROOT_DIR = '.'
     TARGET_EXTENSIONS = ['.py', '.c', '.cpp', '.java', '.js']
@@ -243,3 +400,8 @@ if __name__ == "__main__":
             f"Parent: {result['parent_function']:<15} "
             f"Sink: {result['sink_function']}"
         )
+
+    
+    vulnerable_snippets = generate_vulnerable_snippets(results)
+    for snippet in vulnerable_snippets:
+        print(f"Snippet:\n{snippet}\n")
