@@ -1,0 +1,15 @@
+# fuzz-bizz configuration file
+# Copy this to config.yaml and modify as needed
+
+# Project settings
+project: "project"          # Path to project directory
+
+# LLM settings
+model: "deepseek-coder:6.7b-instruct-q4_K_M"  # Ollama model name
+
+# Fuzzing settings
+timeout: 60                # Fuzzing timeout in seconds
+seeds: 8                    # Number of seeds to generate
+
+# Logging settings
+output: null                # Log file path (null for stdout only)
