@@ -11,6 +11,8 @@ import logging
 import sys
 import subprocess
 import time
+import vuln_finder.vuln_finder as vuln_finder
+
 import yaml
 from dataclasses import dataclass
 from pathlib import Path
@@ -206,6 +208,32 @@ def run_full_pipeline(project_dir: str,
     project_path = Path(project_dir)
     project_name = project_path.name
     
+    # Scan the codebase for vulnerabilities
+    target_extensions = ['.py', '.c', '.cpp', '.java', '.js']
+    
+    logger.info(f"Scanning codebase in {project_dir} for vulnerabilities...")
+    scan_results = vuln_finder.scan_codebase(project_dir, target_extensions)
+    
+    # Generate vulnerable snippets from scan results
+    vulnerable_snippets = vuln_finder.generate_vulnerable_snippets(scan_results)
+    
+    if not vulnerable_snippets:
+        logger.warning("No vulnerabilities found in codebase. Using placeholder inputs.")
+        vulnerable_snippets = ["""
+[project/fastparse.c:4] void parse_input(const char *input) {
+    char buffer[16];
+    printf("Parsing input...\n");
+    strcpy(buffer, input);
+    printf("Received: %s\n", buffer);
+}
+"""]
+    
+    logger.info(f"Found {len(vulnerable_snippets)} vulnerable snippet(s)")
+    # with open("vulnerable_snippets.txt", "w", encoding="utf-8") as f:
+    #     for idx, snippet in enumerate(vulnerable_snippets, 1):
+    #         f.write(f"\n--- Vulnerable Snippet #{idx} ---\n{snippet}\n")
+    # logger.info(f"Wrote vulnerable snippets to vulnerable_snippets.txt")
+    
     logger.info("=" * 60)
     logger.info(f"FUZZ-BIZZ CRS - Starting Pipeline")
     logger.info(f"Project: {project_name}")
@@ -254,7 +282,7 @@ def run_full_pipeline(project_dir: str,
         logger.info(f"\n[STEP 4] Patching {len(fuzz_result.crashes)} crashes...")
         
         # Use full source code as context for patcher
-        snippets = [source_code]
+        snippets = [source_code] + [vulnerable_snippets]
         
         # Run patcher
         patcher.run(
