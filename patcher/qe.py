@@ -22,12 +22,49 @@ class QualityEngineerAgent():
         self.name = "quality engineer agent"
         self.patch_stack = []
 
-    def make_diff(self, old_code, new_code, file_path, identifier):
-        # Extract line number from identifier
-        match = re.search(r'\d+', identifier)
-        if not match:
+    def find_line_number(self, file_path, old_code):
+        """
+        Find the starting line number of old_code in file using fuzzy matching.
+        Returns 1-based line number, or None if no good match found.
+        """
+        with open(file_path, 'r', encoding='utf-8') as f:
+            file_lines = f.readlines()
+        
+        old_lines = old_code.strip().splitlines()
+        if not old_lines:
+            return None
+        
+        window_size = len(old_lines)
+        best_score = 0.0
+        best_start = None
+        
+        # Slide window over file
+        for start in range(len(file_lines) - window_size + 1):
+            window = [line.rstrip('\n\r') for line in file_lines[start:start + window_size]]
+            
+            # Calculate average line-by-line similarity
+            total = 0.0
+            for file_line, old_line in zip(window, old_lines):
+                ratio = difflib.SequenceMatcher(None, file_line.strip(), old_line.strip()).ratio()
+                total += ratio
+            score = total / window_size
+            
+            if score > best_score:
+                best_score = score
+                best_start = start
+        
+        # Require at least 60% similarity
+        if best_score < 0.6:
+            logging.warning(f"No good match found for old_code (best score: {best_score:.2f})")
+            return None
+        
+        logging.info(f"Found match at line {best_start + 1} with score {best_score:.2f}")
+        return best_start + 1  # Convert to 1-based
+
+    def make_diff(self, old_code, new_code, file_path, line_number):
+        # line_number is now passed directly (1-based)
+        if not line_number:
             return "", ""
-        line_number = int(match.group())  # 1-based
 
         old_lines = old_code.splitlines(keepends=True)
         new_lines = new_code.splitlines(keepends=True)
@@ -66,8 +103,22 @@ class QualityEngineerAgent():
             file_path = extract(p, "file_path")[0]
             old_code = extract(p, "old_code")[0]
             new_code = extract(p, "new_code")[0]
-            identifier = extract(p, "identifier")[0]
-            diff, file_lines = self.make_diff(old_code, new_code, file_path, identifier)
+            
+            # Normalize file path - if not found, try with project/ prefix
+            if not os.path.exists(file_path):
+                # Try adding project/ prefix
+                alt_path = os.path.join("project", os.path.basename(file_path))
+                if os.path.exists(alt_path):
+                    logging.info(f"File path normalized: {file_path} -> {alt_path}")
+                    file_path = alt_path
+                else:
+                    logging.error(f"File not found: {file_path} (also tried {alt_path})")
+                    return False
+            
+            # Find line number using fuzzy matching instead of relying on LLM
+            line_number = self.find_line_number(file_path, old_code)
+            
+            diff, file_lines = self.make_diff(old_code, new_code, file_path, line_number)
             if diff == "":
                 return False
             logging.info(f"{self.name} is applying diff\n\n{diff}\n")
